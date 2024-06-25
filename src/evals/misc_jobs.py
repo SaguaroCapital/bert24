@@ -16,7 +16,7 @@ from composer.core.evaluator import Evaluator
 from composer.loggers import LoggerDestination
 from composer.optim import ComposerScheduler, DecoupledAdamW
 from torchmetrics.classification import MultilabelF1Score
-from src.evals.data import create_swag_dataset, create_eurlex_dataset
+from src.evals.data import create_swag_dataset, create_eurlex_dataset, create_fpb_dataset
 from src.evals.finetuning_jobs import (
     build_dataloader,
     multiple_choice_collate_fn,
@@ -250,3 +250,104 @@ class EurlexJob(ClassificationJob):
         )
 
         self.evaluators = [eurlex_evaluator]
+
+
+class FPBMultilabelF1Score(MultilabelF1Score):
+    def __init__(self):
+        super().__init__(num_labels=3, average='micro', threshold=0.5)
+
+
+class FPBJob(ClassificationJob):
+    """Financial Phrasebank classification."""
+    custom_eval_metrics = [FPBMultilabelF1Score]
+    num_labels = 3
+
+    def __init__(
+        self,
+        model: ComposerModel,
+        tokenizer_name: str,
+        job_name: Optional[str] = None,
+        seed: int = 42,
+        eval_interval: str = "1600ba",
+        scheduler: Optional[ComposerScheduler] = None,
+        max_sequence_length: Optional[int] = 512,
+        max_duration: Optional[str] = "3ep",
+        batch_size: Optional[int] = 32,
+        load_path: Optional[str] = None,
+        save_folder: Optional[str] = None,
+        loggers: Optional[List[LoggerDestination]] = None,
+        callbacks: Optional[List[Callback]] = None,
+        precision: Optional[str] = None,
+        n_agree: Optional[int] = 50,
+        **kwargs,
+    ):
+        super().__init__(
+            model=model,
+            tokenizer_name=tokenizer_name,
+            job_name=job_name,
+            seed=seed,
+            task_name="takala/financial_phrasebank",
+            eval_interval=eval_interval,
+            scheduler=scheduler,
+            max_sequence_length=max_sequence_length,
+            max_duration=max_duration,
+            batch_size=batch_size,
+            load_path=load_path,
+            save_folder=save_folder,
+            loggers=loggers,
+            callbacks=callbacks,
+            precision=precision,
+            n_agree=n_agree,
+            **kwargs,
+        )
+
+        self.optimizer = DecoupledAdamW(
+            self.model.parameters(),
+            lr=5.0e-5,
+            betas=(0.9, 0.98),
+            eps=1.0e-06,
+            weight_decay=1.0e-06,
+        )
+
+
+        def tokenize_fn_factory(tokenizer, max_seq_length):
+            def tokenize_fn(inp):
+                first_sentences = inp["sentence"]
+
+                tokenized_examples = tokenizer(
+                    first_sentences,
+                    padding="max_length",
+                    max_length=max_seq_length,
+                    truncation=True,
+                )
+
+                return tokenized_examples
+            return tokenize_fn
+
+        dataset_kwargs = {
+            "task": self.task_name,
+            "tokenizer_name": self.tokenizer_name,
+            "max_seq_length": self.max_sequence_length,
+            "tokenize_fn_factory": tokenize_fn_factory,
+        }
+
+        dataloader_kwargs = {
+            "batch_size": self.batch_size,
+            "num_workers": 0,
+            "drop_last": False,
+        }
+
+        
+        fpb_train_dataset = create_fpb_dataset(split="train[:80%]", **dataset_kwargs)
+        fpb_eval_dataset = create_fpb_dataset(split="train[80%:]", **dataset_kwargs)
+
+        self.train_dataloader = build_dataloader(fpb_train_dataset, **dataloader_kwargs)
+
+
+        fpb_evaluator = Evaluator(
+            label="fpb_evaluator",
+            dataloader=build_dataloader(fpb_eval_dataset, **dataloader_kwargs),
+            metric_names=["FPBMultilabelF1Score"],
+        )
+
+        self.evaluators = [fpb_evaluator]
