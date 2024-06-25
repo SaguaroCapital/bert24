@@ -248,8 +248,8 @@ def create_job_configs(
                     if "group" not in logger_config:
                         logger_config["group"] = main_config.base_run_name
                     logger_config["name"] = run_name
-            # if 'model_config' in main_config.model:
-            main_config.model.model_config.update(task_config.get("model_config", {}))
+            if 'model_config' in main_config.model:
+                main_config.model.model_config.update(task_config.get("model_config", {}))
             task_seed_config = om.OmegaConf.create(
                 {
                     "task": task_name,
