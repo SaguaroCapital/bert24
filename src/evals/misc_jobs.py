@@ -15,7 +15,7 @@ from composer.core import Callback
 from composer.core.evaluator import Evaluator
 from composer.loggers import LoggerDestination
 from composer.optim import ComposerScheduler, DecoupledAdamW
-from torchmetrics.classification import MultilabelF1Score
+from torchmetrics.classification import MulticlassF1Score, MultilabelF1Score
 from src.evals.data import create_swag_dataset, create_eurlex_dataset, create_fpb_dataset
 from src.evals.finetuning_jobs import (
     build_dataloader,
@@ -252,15 +252,15 @@ class EurlexJob(ClassificationJob):
         self.evaluators = [eurlex_evaluator]
 
 
-class FPBMultilabelF1Score(MultilabelF1Score):
+class FPBMulticlassF1Score(MulticlassF1Score):
     def __init__(self):
-        super().__init__(num_labels=3, average='micro', threshold=0.5)
+        super().__init__(num_classes=3)
 
 
 class FPBJob(ClassificationJob):
     """Financial Phrasebank classification."""
-    custom_eval_metrics = [FPBMultilabelF1Score]
-    num_labels = 3
+    custom_eval_metrics = [FPBMulticlassF1Score]
+    num_labels = 1
 
     def __init__(
         self,
@@ -278,7 +278,6 @@ class FPBJob(ClassificationJob):
         loggers: Optional[List[LoggerDestination]] = None,
         callbacks: Optional[List[Callback]] = None,
         precision: Optional[str] = None,
-        n_agree: Optional[int] = 50,
         **kwargs,
     ):
         super().__init__(
@@ -286,7 +285,7 @@ class FPBJob(ClassificationJob):
             tokenizer_name=tokenizer_name,
             job_name=job_name,
             seed=seed,
-            task_name="takala/financial_phrasebank",
+            task_name="sentences_50agree",
             eval_interval=eval_interval,
             scheduler=scheduler,
             max_sequence_length=max_sequence_length,
@@ -297,7 +296,6 @@ class FPBJob(ClassificationJob):
             loggers=loggers,
             callbacks=callbacks,
             precision=precision,
-            n_agree=n_agree,
             **kwargs,
         )
 
@@ -336,10 +334,16 @@ class FPBJob(ClassificationJob):
             "num_workers": 0,
             "drop_last": False,
         }
-
         
         fpb_train_dataset = create_fpb_dataset(split="train[:80%]", **dataset_kwargs)
         fpb_eval_dataset = create_fpb_dataset(split="train[80%:]", **dataset_kwargs)
+
+
+        def convert_labels_to_float(example):
+            example['labels'] = float(example['label'])
+            return example
+        fpb_train_dataset = fpb_train_dataset.map(convert_labels_to_float, remove_columns=['label'])
+        fpb_eval_dataset = fpb_eval_dataset.map(convert_labels_to_float, remove_columns=['label'])
 
         self.train_dataloader = build_dataloader(fpb_train_dataset, **dataloader_kwargs)
 
@@ -347,7 +351,7 @@ class FPBJob(ClassificationJob):
         fpb_evaluator = Evaluator(
             label="fpb_evaluator",
             dataloader=build_dataloader(fpb_eval_dataset, **dataloader_kwargs),
-            metric_names=["FPBMultilabelF1Score"],
+            metric_names=["FPBMulticlassF1Score"],
         )
 
         self.evaluators = [fpb_evaluator]
