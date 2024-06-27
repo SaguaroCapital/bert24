@@ -170,6 +170,7 @@ def create_flex_bert_classification(
     pretrained_checkpoint: Optional[str] = None,
     custom_eval_metrics: Optional[list] = [],
     multiple_choice: Optional[bool] = False,
+    token_classification: Optional[bool] = False,
 ):
     """FlexBERT classification model based on |:hugging_face:| Transformers.
 
@@ -273,6 +274,9 @@ def create_flex_bert_classification(
 
     if multiple_choice:
         model_cls = bert_layers_module.FlexBertForMultipleChoice
+
+    if token_classification:
+        model_cls = bert_layers_module.FlexBertForTokenClassification
 
     if isinstance(model_config, DictConfig):
         model_config = OmegaConf.to_container(model_config, resolve=True)
