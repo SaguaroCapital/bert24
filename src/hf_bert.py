@@ -15,6 +15,8 @@ from torchmetrics.classification.accuracy import MulticlassAccuracy, MultilabelA
 from torchmetrics.classification.matthews_corrcoef import MatthewsCorrCoef
 from torchmetrics.regression.spearman import SpearmanCorrCoef
 
+import evaluate
+
 __all__ = ["create_hf_bert_mlm", "create_hf_bert_classification"]
 
 
@@ -127,6 +129,7 @@ def create_hf_bert_classification(
     gradient_checkpointing: Optional[bool] = False,
     custom_eval_metrics: Optional[list] = [],
     multiple_choice: Optional[bool] = False,
+    token_classification: Optional[bool] = False,
 ):
     """BERT model based on |:hugging_face:| Transformers.
 
@@ -208,6 +211,9 @@ def create_hf_bert_classification(
 
     if multiple_choice:
         auto_model_cls = transformers.AutoModelForMultipleChoice
+    
+    if token_classification:
+        auto_model_cls = transformers.AutoModelForTokenClassification
 
     if use_pretrained:
         assert (
@@ -249,6 +255,11 @@ def create_hf_bert_classification(
     if model_config.get('problem_type', '') == 'multi_label_classification':
         metrics = [
             MultilabelAccuracy(num_labels=num_labels, average="micro"),
+        ]
+    if model_config.get('problem_type', '') == 'token_classification':
+        metrics = [
+            evaluate.load("seqeval"),
+            # MultilabelAccuracy(num_labels=num_labels, average="micro"),
         ]
 
     return HuggingFaceModel(

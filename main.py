@@ -189,6 +189,7 @@ def build_dataloader(cfg, tokenizer, device_batch_size):
 
 
 def build_model(cfg: DictConfig):
+    print("CONFIG NAME" + cfg.name)
     if cfg.name == "hf_bert":
         return hf_bert_module.create_hf_bert_mlm(
             pretrained_model_name=cfg.pretrained_model_name,

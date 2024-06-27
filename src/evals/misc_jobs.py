@@ -6,6 +6,7 @@ import os
 import sys
 from itertools import chain
 from typing import List, Optional
+import evaluate
 
 # Add glue folder root to path to allow us to use relative imports regardless of what directory the script is run from
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
@@ -16,7 +17,7 @@ from composer.core.evaluator import Evaluator
 from composer.loggers import LoggerDestination
 from composer.optim import ComposerScheduler, DecoupledAdamW
 from torchmetrics.classification import MulticlassF1Score, MultilabelF1Score
-from src.evals.data import create_swag_dataset, create_eurlex_dataset, create_fpb_dataset
+from src.evals.data import create_swag_dataset, create_eurlex_dataset, create_fpb_dataset, create_ner_dataset
 from src.evals.finetuning_jobs import (
     build_dataloader,
     multiple_choice_collate_fn,
@@ -355,3 +356,129 @@ class FPBJob(ClassificationJob):
         )
 
         self.evaluators = [fpb_evaluator]
+
+class NERMetric(torchmetrics.Metric):
+    def __init__(self):
+        super().__init__()
+        self.hf_metric = evaluate.load("seqeval")
+    def update(self, outputs, labels):
+        self.hf_metric.add_batch(
+            predictions=outputs.argmax(axis=1).cpu().numpy(),
+            references=labels.detach().cpu().numpy(),
+        )
+
+    def compute(self):
+        return self.hf_metric.compute()
+
+
+class NERJob(ClassificationJob):
+    """Named Entity Recognition."""
+    metric = evaluate.load("seqeval")
+    custom_eval_metrics = [metric]
+    num_labels = 9
+    token_classification = True
+
+    def __init__(
+        self,
+        model: ComposerModel,
+        tokenizer_name: str,
+        job_name: Optional[str] = None,
+        seed: int = 42,
+        eval_interval: str = "1600ba",
+        scheduler: Optional[ComposerScheduler] = None,
+        max_sequence_length: Optional[int] = 512,
+        max_duration: Optional[str] = "3ep",
+        batch_size: Optional[int] = 16,
+        load_path: Optional[str] = None,
+        save_folder: Optional[str] = None,
+        loggers: Optional[List[LoggerDestination]] = None,
+        callbacks: Optional[List[Callback]] = None,
+        precision: Optional[str] = None,
+        **kwargs,
+    ):
+        super().__init__(
+            model=model,
+            tokenizer_name=tokenizer_name,
+            job_name=job_name,
+            seed=seed,
+            task_name="conll2003",
+            eval_interval=eval_interval,
+            scheduler=scheduler,
+            max_sequence_length=max_sequence_length,
+            max_duration=max_duration,
+            batch_size=batch_size,
+            load_path=load_path,
+            save_folder=save_folder,
+            loggers=loggers,
+            callbacks=callbacks,
+            precision=precision,
+            **kwargs,
+        )
+
+        self.optimizer = DecoupledAdamW(
+            self.model.parameters(),
+            lr=5.0e-5,
+            betas=(0.9, 0.98),
+            eps=1.0e-06,
+            weight_decay=1.0e-06,
+        )
+
+        
+        def tokenize_fn_factory(tokenizer, max_seq_length):
+            label_all_tokens = True
+            def tokenize_fn(inp):
+                first_sentences = inp["tokens"]
+
+                tokenized_examples = tokenizer(
+                    first_sentences,
+                    padding="max_length",
+                    max_length=max_seq_length,
+                    truncation=True,
+                    is_split_into_words=True,
+                )
+                labels = []
+                for i, label in enumerate(inp["ner_tags"]):
+                    word_ids = tokenized_examples.word_ids(batch_index=i)
+                    previous_word_idx = None
+                    label_ids = []
+                    for word_idx in word_ids:
+                        if word_idx is None:
+                            label_ids.append(-100)
+                        elif word_idx != previous_word_idx:
+                            label_ids.append(label[word_idx])
+                        else:
+                            label_ids.append(label[word_idx] if label_all_tokens else -100)
+                        previous_word_idx = word_idx
+                    labels.append(label_ids)
+                tokenized_examples["labels"] = labels
+                return tokenized_examples
+            return tokenize_fn
+
+        dataset_kwargs = {
+            "task": self.task_name,
+            "tokenizer_name": self.tokenizer_name,
+            "max_seq_length": self.max_sequence_length,
+            "tokenize_fn_factory": tokenize_fn_factory,
+        }
+
+        dataloader_kwargs = {
+            "batch_size": self.batch_size,
+            "num_workers": 0,
+            "drop_last": False,
+        }
+        
+        ner_train_dataset = create_ner_dataset(split="train", **dataset_kwargs)
+        ner_eval_dataset = create_ner_dataset(split="test", **dataset_kwargs)
+        unwanted_columns = ["id", "pos_tags", "chunk_tags", "ner_tags"]
+        ner_train_dataset = ner_train_dataset.remove_columns(unwanted_columns)
+        ner_eval_dataset = ner_eval_dataset.remove_columns(unwanted_columns)        
+        self.train_dataloader = build_dataloader(ner_train_dataset,  **dataloader_kwargs)
+        print("hi")
+
+        ner_evaluator = Evaluator(
+            label="ner_evaluator",
+            dataloader=build_dataloader(ner_eval_dataset, **dataloader_kwargs),
+            metric_names=["NERMetric"],
+        )
+
+        self.evaluators = [ner_evaluator]

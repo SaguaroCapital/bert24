@@ -166,4 +166,11 @@ def create_fpb_dataset(**kwargs):
                            "sentences_66agree": ("sentence",), 
                            "sentences_50agree": ("sentence",)},
     )
+
+def create_ner_dataset(**kwargs):
+    return create_eval_dataset(
+        **kwargs,
+        dataset_name="eriktks/conll2003",
+        task_column_names={"conll2003": ("tokens",)},
+    )
     

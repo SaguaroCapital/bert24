@@ -62,6 +62,7 @@ TASK_NAME_TO_CLASS = {
     "swag": misc_jobs_module.SWAGJob,
     "eurlex": misc_jobs_module.EurlexJob,
     "fpb": misc_jobs_module.FPBJob,
+    "ner": misc_jobs_module.NERJob,
 }
 
 GLUE_TASKS = {"mnli", "rte", "mrpc", "qnli", "qqp", "sst2", "stsb", "cola"}
@@ -285,6 +286,7 @@ def run_job_worker(
     # need to set seed before model initialization for determinism
     reproducibility.seed_all(config.seed)
     task_cls = TASK_NAME_TO_CLASS[config.task]
+    print(task_cls)
     instantiated_job = task_cls(
         job_name=config.job_name,
         seed=config.seed,
@@ -292,6 +294,7 @@ def run_job_worker(
             config.model,
             num_labels=task_cls.num_labels,
             multiple_choice=task_cls.multiple_choice,
+            token_classification=task_cls.token_classification,
             custom_eval_metrics=task_cls.custom_eval_metrics,
         ),
         tokenizer_name=config.tokenizer_name,
@@ -466,7 +469,7 @@ def train(config: om.DictConfig) -> None:
         # superglue:
         *{"boolq", "cb", "multirc", "wic"},
         # misc:
-        *{"swag", "eurlex", "fpb"},
+        *{"swag", "eurlex", "fpb", "ner"},
     }
     round_1_job_configs = create_job_configs(
         config, round_1_task_names, local_pretrain_checkpoint_path
