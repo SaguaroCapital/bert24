@@ -14,11 +14,9 @@ from torchmetrics import MeanSquaredError
 from torchmetrics.classification.accuracy import MulticlassAccuracy, MultilabelAccuracy
 from torchmetrics.classification.matthews_corrcoef import MatthewsCorrCoef
 from torchmetrics.regression.spearman import SpearmanCorrCoef
-
-import evaluate
+from src.evals.misc_jobs import CoNLLEval
 
 __all__ = ["create_hf_bert_mlm", "create_hf_bert_classification"]
-
 
 def create_hf_bert_mlm(
     pretrained_model_name: str = "bert-base-uncased",
@@ -258,8 +256,7 @@ def create_hf_bert_classification(
         ]
     if model_config.get('problem_type', '') == 'token_classification':
         metrics = [
-            evaluate.load("seqeval"),
-            # MultilabelAccuracy(num_labels=num_labels, average="micro"),
+            CoNLLEval()
         ]
 
     return HuggingFaceModel(

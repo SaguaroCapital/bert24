@@ -7,6 +7,8 @@ import sys
 from itertools import chain
 from typing import List, Optional
 import evaluate
+import torch
+import torchmetrics
 
 # Add glue folder root to path to allow us to use relative imports regardless of what directory the script is run from
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
@@ -357,26 +359,45 @@ class FPBJob(ClassificationJob):
 
         self.evaluators = [fpb_evaluator]
 
-class NERMetric(torchmetrics.Metric):
+class CoNLLEval(torchmetrics.Metric):
     def __init__(self):
         super().__init__()
-        self.hf_metric = evaluate.load("seqeval")
+        self.metric = evaluate.load("seqeval")
+        self.predictions = []
+        self.references = []
+        self.label_names = ["O", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC", "B-MISC", "I-MISC"]
+
     def update(self, outputs, labels):
-        self.hf_metric.add_batch(
-            predictions=outputs.argmax(axis=1).cpu().numpy(),
-            references=labels.detach().cpu().numpy(),
-        )
+        predictions = outputs.argmax(dim=-1)
+        predictions = predictions.detach().cpu().numpy()
+        labels = labels.detach().cpu().numpy()
+
+        true_predictions = [
+            [self.label_names[p] for (p, l) in zip(prediction, label) if l != -100]
+            for prediction, label in zip(predictions, labels)
+        ]
+        true_labels = [
+            [self.label_names[l] for l in label if l != -100]
+            for label in labels
+        ]
+
+        self.predictions.extend(true_predictions)
+        self.references.extend(true_labels)
 
     def compute(self):
-        return self.hf_metric.compute()
+        results = self.metric.compute(predictions=self.predictions, references=self.references)
+        return torch.tensor(results["overall_f1"], dtype=torch.float32)
+
+    def reset(self):
+        self.predictions = []
+        self.references = []
 
 
-class NERJob(ClassificationJob):
-    """Named Entity Recognition."""
-    metric = evaluate.load("seqeval")
-    custom_eval_metrics = [metric]
+class CoNLLJob(ClassificationJob):
+    """CoNLL-2003 named entity recognition."""
     num_labels = 9
     token_classification = True
+    custom_eval_metrics = [CoNLLEval]
 
     def __init__(
         self,
@@ -424,8 +445,7 @@ class NERJob(ClassificationJob):
         )
 
         
-        def tokenize_fn_factory(tokenizer, max_seq_length):
-            label_all_tokens = True
+        def tokenize_fn_factory(tokenizer, max_seq_length: int, label_all_tokens: bool = True):
             def tokenize_fn(inp):
                 first_sentences = inp["tokens"]
 
@@ -473,12 +493,11 @@ class NERJob(ClassificationJob):
         ner_train_dataset = ner_train_dataset.remove_columns(unwanted_columns)
         ner_eval_dataset = ner_eval_dataset.remove_columns(unwanted_columns)        
         self.train_dataloader = build_dataloader(ner_train_dataset,  **dataloader_kwargs)
-        print("hi")
 
         ner_evaluator = Evaluator(
             label="ner_evaluator",
             dataloader=build_dataloader(ner_eval_dataset, **dataloader_kwargs),
-            metric_names=["NERMetric"],
+            metric_names=["CoNLLEval"],
         )
 
         self.evaluators = [ner_evaluator]
