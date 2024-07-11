@@ -181,3 +181,12 @@ def create_fin_dataset(**kwargs):
         dataset_name="tner/fin",
         task_column_names={"fin": ("tokens",)},
     )
+
+def create_fiqa_dataset(**kwargs):
+    return create_eval_dataset(
+        **kwargs,
+        dataset_name="TheFinAI/fiqa-sentiment-classification",
+        task_column_names={
+            "default": ("sentence",)
+        },
+    )
