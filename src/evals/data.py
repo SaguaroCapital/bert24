@@ -19,6 +19,7 @@ span-pooling operator (Lee et al., 2017), before feeding it into a logistic regr
 """
 
 import logging
+from typing import Optional
 
 from composer.utils import MissingConditionalImportError, dist
 
@@ -63,7 +64,7 @@ def create_eval_dataset(
     num_workers: int = 0,
     dataset_subset: str = None,
     task_column_names: dict = _glue_task_column_names,
-    tokenize_fn_factory: callable = None,
+    tokenize_fn_factory: callable = None
 ):
     try:
         import datasets

@@ -589,7 +589,6 @@ def train(config: om.DictConfig) -> None:
 
 if __name__ == "__main__":
     yaml_path, args_list = sys.argv[1], sys.argv[2:]
-
     with open(yaml_path) as f:
         yaml_cfg = om.OmegaConf.load(f)
 
