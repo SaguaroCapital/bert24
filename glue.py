@@ -63,6 +63,7 @@ TASK_NAME_TO_CLASS = {
     "eurlex": misc_jobs_module.EurlexJob,
     "fpb": misc_jobs_module.FPBJob,
     "conll2003": misc_jobs_module.CoNLLJob,
+    "fin": misc_jobs_module.FINJob,
 }
 
 GLUE_TASKS = {"mnli", "rte", "mrpc", "qnli", "qqp", "sst2", "stsb", "cola"}
@@ -469,7 +470,7 @@ def train(config: om.DictConfig) -> None:
         # superglue:
         *{"boolq", "cb", "multirc", "wic"},
         # misc:
-        *{"swag", "eurlex", "fpb", "conll2003"},
+        *{"swag", "eurlex", "fpb", "conll2003", "fin"},
     }
     round_1_job_configs = create_job_configs(
         config, round_1_task_names, local_pretrain_checkpoint_path
