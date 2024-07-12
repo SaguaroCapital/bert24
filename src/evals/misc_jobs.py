@@ -26,6 +26,8 @@ from src.evals.finetuning_jobs import (
     ClassificationJob,
 )
 
+from datasets import concatenate_datasets
+
 
 class SWAGJob(ClassificationJob):
     """SWAG."""
@@ -675,7 +677,6 @@ class FiQaJob(ClassificationJob):
             weight_decay=1.0e-06,
         )
 
-
         def tokenize_fn_factory(tokenizer, max_seq_length):
             def tokenize_fn(inp):
                 first_sentences = inp["sentence"]
@@ -701,8 +702,26 @@ class FiQaJob(ClassificationJob):
             "drop_last": False,
         }
         
+        # fiqa_train_dataset = create_fiqa_dataset(split="train", **dataset_kwargs)
+        # fiqa_eval_dataset = create_fiqa_dataset(split="test", **dataset_kwargs)
+
         fiqa_train_dataset = create_fiqa_dataset(split="train", **dataset_kwargs)
         fiqa_eval_dataset = create_fiqa_dataset(split="test", **dataset_kwargs)
+        fiqa_val_dataset = create_fiqa_dataset(split="valid", **dataset_kwargs)
+
+        # Combine all splits into a single dataset
+        combined_dataset = concatenate_datasets([fiqa_train_dataset, fiqa_eval_dataset, fiqa_val_dataset])
+
+        # Define the new split ratio
+        split_ratio = 0.8  # 80% train, 20% test
+
+        # Perform the new train-test split
+        split_datasets = combined_dataset.train_test_split(test_size=1-split_ratio)
+
+        # Access the new train and test datasets
+        fiqa_train_dataset = split_datasets['train']
+        fiqa_eval_dataset = split_datasets['test']
+
         def convert_scores_to_labels(example):
             if float(example['score']) < -0.1:
                 example['labels'] = 0.0
@@ -722,7 +741,6 @@ class FiQaJob(ClassificationJob):
             dataloader=build_dataloader(fiqa_eval_dataset, **dataloader_kwargs),
             metric_names=["FPBMulticlassF1Score"],
         )
-
         self.evaluators = [fiqa_evaluator]
 
 class HeadlineJob(ClassificationJob):
@@ -803,8 +821,8 @@ class HeadlineJob(ClassificationJob):
             "drop_last": False,
         }
         
-        headline_train_dataset = create_headline_dataset(split="train[:86%]", **dataset_kwargs)
-        headline_eval_dataset = create_headline_dataset(split="train[86%:]", **dataset_kwargs)
+        headline_train_dataset = create_headline_dataset(split="train", **dataset_kwargs)
+        headline_eval_dataset = create_headline_dataset(split="test", **dataset_kwargs)
 
 
         def convert_labels_to_float(example):
