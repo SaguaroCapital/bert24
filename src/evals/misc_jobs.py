@@ -19,7 +19,7 @@ from composer.core.evaluator import Evaluator
 from composer.loggers import LoggerDestination
 from composer.optim import ComposerScheduler, DecoupledAdamW
 from torchmetrics.classification import MulticlassF1Score, MultilabelF1Score
-from src.evals.data import create_swag_dataset, create_eurlex_dataset, create_fpb_dataset, create_conll_dataset, create_fin_dataset, create_fiqa_dataset
+from src.evals.data import create_swag_dataset, create_eurlex_dataset, create_fpb_dataset, create_conll_dataset, create_fin_dataset, create_fiqa_dataset, create_headline_dataset
 from src.evals.finetuning_jobs import (
     build_dataloader,
     multiple_choice_collate_fn,
@@ -626,7 +626,7 @@ class FINJob(ClassificationJob):
         self.evaluators = [ner_evaluator]
 
 class FiQaJob(ClassificationJob):
-    """Financial Phrasebank classification."""
+    """FiQa task 1 sentiment classification."""
     custom_eval_metrics = [FPBMulticlassF1Score]
     num_labels = 1
 
@@ -713,7 +713,8 @@ class FiQaJob(ClassificationJob):
             return example
         fiqa_train_dataset = fiqa_train_dataset.map(convert_scores_to_labels, remove_columns=["_id", "target", "aspect", "score", "type"])
         fiqa_eval_dataset = fiqa_eval_dataset.map(convert_scores_to_labels, remove_columns=["_id", "target", "aspect", "score", "type"])
-
+        for example in fiqa_train_dataset:
+            print(example['labels'])
         self.train_dataloader = build_dataloader(fiqa_train_dataset, **dataloader_kwargs)
 
         fiqa_evaluator = Evaluator(
@@ -723,3 +724,107 @@ class FiQaJob(ClassificationJob):
         )
 
         self.evaluators = [fiqa_evaluator]
+
+class HeadlineJob(ClassificationJob):
+    """Gold Headlines sentiment classification."""
+    custom_eval_metrics = [FPBMulticlassF1Score]
+    num_labels = 1
+
+    def __init__(
+        self,
+        model: ComposerModel,
+        tokenizer_name: str,
+        job_name: Optional[str] = None,
+        seed: int = 42,
+        eval_interval: str = "1600ba",
+        scheduler: Optional[ComposerScheduler] = None,
+        max_sequence_length: Optional[int] = 512,
+        max_duration: Optional[str] = "3ep",
+        batch_size: Optional[int] = 32,
+        load_path: Optional[str] = None,
+        save_folder: Optional[str] = None,
+        loggers: Optional[List[LoggerDestination]] = None,
+        callbacks: Optional[List[Callback]] = None,
+        precision: Optional[str] = None,
+        **kwargs,
+    ):
+        super().__init__(
+            model=model,
+            tokenizer_name=tokenizer_name,
+            job_name=job_name,
+            seed=seed,
+            task_name="default",
+            eval_interval=eval_interval,
+            scheduler=scheduler,
+            max_sequence_length=max_sequence_length,
+            max_duration=max_duration,
+            batch_size=batch_size,
+            load_path=load_path,
+            save_folder=save_folder,
+            loggers=loggers,
+            callbacks=callbacks,
+            precision=precision,
+            **kwargs,
+        )
+
+        self.optimizer = DecoupledAdamW(
+            self.model.parameters(),
+            lr=5.0e-5,
+            betas=(0.9, 0.98),
+            eps=1.0e-06,
+            weight_decay=1.0e-06,
+        )
+
+
+        def tokenize_fn_factory(tokenizer, max_seq_length):
+            def tokenize_fn(inp):
+                first_sentences = inp["News"]
+
+                tokenized_examples = tokenizer(
+                    first_sentences,
+                    padding="max_length",
+                    max_length=max_seq_length,
+                    truncation=True,
+                )
+
+                return tokenized_examples
+            return tokenize_fn
+
+        dataset_kwargs = {
+            "task": self.task_name,
+            "tokenizer_name": self.tokenizer_name,
+            "max_seq_length": self.max_sequence_length,
+            "tokenize_fn_factory": tokenize_fn_factory,
+        }
+
+        dataloader_kwargs = {
+            "batch_size": self.batch_size,
+            "num_workers": 0,
+            "drop_last": False,
+        }
+        
+        headline_train_dataset = create_headline_dataset(split="train[:86%]", **dataset_kwargs)
+        headline_eval_dataset = create_headline_dataset(split="train[86%:]", **dataset_kwargs)
+
+
+        def convert_labels_to_float(example):
+            if example['Price Sentiment'] == 'negative':
+                example['labels'] = 0.0
+            elif example['Price Sentiment'] == 'positive':
+                example['labels'] = 2.0
+            else:
+                example['labels'] = 1.0
+            return example
+        headline_train_dataset = headline_train_dataset.map(convert_labels_to_float, remove_columns=["Dates", "URL", "Price Direction Up", "Price Direction Constant", "Price Direction Down", "Asset Comparision", "Past Information", "Future Information", "Price Sentiment"])
+        headline_eval_dataset = headline_eval_dataset.map(convert_labels_to_float, remove_columns=["Dates", "URL", "Price Direction Up", "Price Direction Constant", "Price Direction Down", "Asset Comparision", "Past Information", "Future Information", "Price Sentiment"])
+        
+        self.train_dataloader = build_dataloader(headline_train_dataset, **dataloader_kwargs)
+
+
+        headline_evaluator = Evaluator(
+            label="headline_evaluator",
+            dataloader=build_dataloader(headline_eval_dataset, **dataloader_kwargs),
+            metric_names=["FPBMulticlassF1Score"],
+        )
+
+        self.evaluators = [headline_evaluator]
