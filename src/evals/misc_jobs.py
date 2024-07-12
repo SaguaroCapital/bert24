@@ -627,9 +627,13 @@ class FINJob(ClassificationJob):
 
         self.evaluators = [ner_evaluator]
 
+class FiQaWeightedMulticlassF1Score(MulticlassF1Score):
+    def __init__(self):
+        super().__init__(num_classes=3, average='weighted')
+
 class FiQaJob(ClassificationJob):
     """FiQa task 1 sentiment classification."""
-    custom_eval_metrics = [FPBMulticlassF1Score]
+    custom_eval_metrics = [FiQaWeightedMulticlassF1Score]
     num_labels = 1
 
     def __init__(
@@ -642,7 +646,7 @@ class FiQaJob(ClassificationJob):
         scheduler: Optional[ComposerScheduler] = None,
         max_sequence_length: Optional[int] = 512,
         max_duration: Optional[str] = "3ep",
-        batch_size: Optional[int] = 32,
+        batch_size: Optional[int] = 16,
         load_path: Optional[str] = None,
         save_folder: Optional[str] = None,
         loggers: Optional[List[LoggerDestination]] = None,
@@ -708,17 +712,8 @@ class FiQaJob(ClassificationJob):
         fiqa_train_dataset = create_fiqa_dataset(split="train", **dataset_kwargs)
         fiqa_eval_dataset = create_fiqa_dataset(split="test", **dataset_kwargs)
         fiqa_val_dataset = create_fiqa_dataset(split="valid", **dataset_kwargs)
-
-        # Combine all splits into a single dataset
         combined_dataset = concatenate_datasets([fiqa_train_dataset, fiqa_eval_dataset, fiqa_val_dataset])
-
-        # Define the new split ratio
-        split_ratio = 0.8  # 80% train, 20% test
-
-        # Perform the new train-test split
-        split_datasets = combined_dataset.train_test_split(test_size=1-split_ratio)
-
-        # Access the new train and test datasets
+        split_datasets = combined_dataset.train_test_split(test_size=1-0.8)
         fiqa_train_dataset = split_datasets['train']
         fiqa_eval_dataset = split_datasets['test']
 
@@ -732,14 +727,12 @@ class FiQaJob(ClassificationJob):
             return example
         fiqa_train_dataset = fiqa_train_dataset.map(convert_scores_to_labels, remove_columns=["_id", "target", "aspect", "score", "type"])
         fiqa_eval_dataset = fiqa_eval_dataset.map(convert_scores_to_labels, remove_columns=["_id", "target", "aspect", "score", "type"])
-        for example in fiqa_train_dataset:
-            print(example['labels'])
         self.train_dataloader = build_dataloader(fiqa_train_dataset, **dataloader_kwargs)
 
         fiqa_evaluator = Evaluator(
             label="fiqa_evaluator",
             dataloader=build_dataloader(fiqa_eval_dataset, **dataloader_kwargs),
-            metric_names=["FPBMulticlassF1Score"],
+            metric_names=["FiQaWeightedMulticlassF1Score"],
         )
         self.evaluators = [fiqa_evaluator]
 
