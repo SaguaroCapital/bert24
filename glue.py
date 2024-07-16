@@ -126,7 +126,7 @@ def build_scheduler(cfg):
 
 
 def build_model(
-    cfg: DictConfig, num_labels: int, multiple_choice: bool = False, **kwargs
+    cfg: DictConfig, num_labels: int, multiple_choice: bool = False, token_classification: bool = False, **kwargs
 ):
     if cfg.name == "hf_bert":
         return hf_bert_module.create_hf_bert_classification(
@@ -137,6 +137,7 @@ def build_model(
             tokenizer_name=cfg.get("tokenizer_name", None),
             gradient_checkpointing=cfg.get("gradient_checkpointing", None),
             multiple_choice=multiple_choice,
+            token_classification=token_classification,
             **kwargs,
         )
     elif cfg.name == "mosaic_bert":
@@ -148,6 +149,7 @@ def build_model(
             tokenizer_name=cfg.get("tokenizer_name", None),
             gradient_checkpointing=cfg.get("gradient_checkpointing", None),
             multiple_choice=multiple_choice,
+            token_classification=token_classification,
             **kwargs,
         )
     elif cfg.name == "flex_bert":
@@ -159,6 +161,7 @@ def build_model(
             tokenizer_name=cfg.get("tokenizer_name", None),
             gradient_checkpointing=cfg.get("gradient_checkpointing", None),
             multiple_choice=multiple_choice,
+            token_classification=token_classification,
             **kwargs,
         )
     else:
@@ -599,6 +602,11 @@ if __name__ == "__main__":
 
     if cfg.model.name == "mosaic_bert":
         with open("yamls/defaults.yaml") as f:
+            default_cfg = om.OmegaConf.load(f)
+        cfg = om.OmegaConf.merge(cfg, default_cfg)
+    
+    elif cfg.model.name == "flex_bert":
+        with open("yamls/models/flex_bert.yaml") as f:
             default_cfg = om.OmegaConf.load(f)
         cfg = om.OmegaConf.merge(cfg, default_cfg)
 

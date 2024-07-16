@@ -1031,7 +1031,7 @@ class FlexBertForMaskedLM(BertPreTrainedModel):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         output = self.bert(input_ids, attention_mask=attention_mask, position_ids=position_ids)
-
+        print(output)
         logits = self.decoder(self.head(output))
         loss = None
         if labels is not None:
@@ -1152,7 +1152,7 @@ class FlexBertForSequenceClassification(BertPreTrainedModel):
             attention_mask=attention_mask,
             position_ids=position_ids,
         )
-
+    
         pooled_output = self.head(output)
         logits = self.classifier(pooled_output)
 
@@ -1276,7 +1276,7 @@ class FlexBertForMultipleChoice(BertPreTrainedModel):
         input_ids = input_ids.view(-1, input_ids.size(-1)) if input_ids is not None else None
         attention_mask = attention_mask.view(-1, attention_mask.size(-1)) if attention_mask is not None else None
         position_ids = position_ids.view(-1, position_ids.size(-1)) if position_ids is not None else None
-
+        print(output)
         output = self.bert(
             input_ids,
             attention_mask=attention_mask,
@@ -1325,13 +1325,9 @@ class FlexBertForTokenClassification(BertPreTrainedModel):
         self.num_labels = config.num_labels
         self.config = config
 
-        self.bert = BertModel(config)
-        classifier_dropout = (
-            config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
-        )
-        self.dropout = nn.Dropout(classifier_dropout)
-        self.classifier = nn.Linear(config.hidden_size, self.num_labels)
-
+        self.bert = FlexBertModel(config)
+        self.head = FlexBertPoolingHead(config)
+        self.classifier = nn.Linear(config.hidden_size, config.num_labels)
         # Initialize weights and apply final processing
         self.post_init()
 
@@ -1369,30 +1365,26 @@ class FlexBertForTokenClassification(BertPreTrainedModel):
         attention_mask: Optional[torch.Tensor] = None,
         token_type_ids: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.Tensor] = None,
-        head_mask: Optional[torch.Tensor] = None,
-        inputs_embeds: Optional[torch.Tensor] = None,
         labels: Optional[torch.Tensor] = None,
-        output_attentions: Optional[bool] = None,
-        output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple[torch.Tensor], TokenClassifierOutput]:
+        # labels (`torch.LongTensor` of shape `(batch_size,)`, *optional*):
+        # Labels for computing the sequence classification/regression loss.
+        # Indices should be in `[0, ..., config.num_labels - 1]`.
+        # If `config.num_labels == 1` a regression loss is computed
+        # (mean-square loss). If `config.num_labels > 1` a classification loss
+        # is computed (cross-entropy).
 
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
-        outputs = self.bert(
+        
+        output = self.bert(
             input_ids,
             attention_mask=attention_mask,
             token_type_ids=token_type_ids,
             position_ids=position_ids,
-            head_mask=head_mask,
-            inputs_embeds=inputs_embeds,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
         )
-
-        sequence_output = outputs[0]
-        sequence_output = self.dropout(sequence_output)
+        
+        sequence_output = self.head(output, pool=False)  
         logits = self.classifier(sequence_output)
 
         loss = None
@@ -1410,12 +1402,12 @@ class FlexBertForTokenClassification(BertPreTrainedModel):
                 loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
 
         if not return_dict:
-            output = (logits,) + outputs[2:]
+            output = (logits,) + output
             return ((loss,) + output) if loss is not None else output
 
         return TokenClassifierOutput(
             loss=loss,
             logits=logits,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
+            hidden_states=None,
+            attentions=None,
         )

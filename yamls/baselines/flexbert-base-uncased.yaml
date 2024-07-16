@@ -11,7 +11,7 @@ tokenizer_name: bert-base-uncased
 
 # Base model config
 model:
-  name: hf_bert
+  name: flex_bert
   use_pretrained: true
   pretrained_model_name: ${tokenizer_name}
   tokenizer_name: ${tokenizer_name}

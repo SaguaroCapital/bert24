@@ -705,15 +705,12 @@ class FiQaJob(ClassificationJob):
             "num_workers": 0,
             "drop_last": False,
         }
-        
-        # fiqa_train_dataset = create_fiqa_dataset(split="train", **dataset_kwargs)
-        # fiqa_eval_dataset = create_fiqa_dataset(split="test", **dataset_kwargs)
 
         fiqa_train_dataset = create_fiqa_dataset(split="train", **dataset_kwargs)
         fiqa_eval_dataset = create_fiqa_dataset(split="test", **dataset_kwargs)
         fiqa_val_dataset = create_fiqa_dataset(split="valid", **dataset_kwargs)
         combined_dataset = concatenate_datasets([fiqa_train_dataset, fiqa_eval_dataset, fiqa_val_dataset])
-        split_datasets = combined_dataset.train_test_split(test_size=1-0.8)
+        split_datasets = combined_dataset.train_test_split(test_size=1-0.8) #match bloombergGPT split
         fiqa_train_dataset = split_datasets['train']
         fiqa_eval_dataset = split_datasets['test']
 
@@ -823,9 +820,11 @@ class HeadlineJob(ClassificationJob):
                 example['labels'] = 0.0
             elif example['Price Sentiment'] == 'positive':
                 example['labels'] = 2.0
-            else:
+            elif example['Price Sentiment'] == 'neutral':
                 example['labels'] = 1.0
             return example
+        headline_train_dataset = headline_train_dataset.filter(lambda example: example['Price Sentiment']!="none")
+        headline_eval_dataset = headline_eval_dataset.filter(lambda example: example['Price Sentiment']!="none")
         headline_train_dataset = headline_train_dataset.map(convert_labels_to_float, remove_columns=["Dates", "URL", "Price Direction Up", "Price Direction Constant", "Price Direction Down", "Asset Comparision", "Past Information", "Future Information", "Price Sentiment"])
         headline_eval_dataset = headline_eval_dataset.map(convert_labels_to_float, remove_columns=["Dates", "URL", "Price Direction Up", "Price Direction Constant", "Price Direction Down", "Asset Comparision", "Past Information", "Future Information", "Price Sentiment"])
         
