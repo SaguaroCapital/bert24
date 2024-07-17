@@ -62,7 +62,7 @@ TASK_NAME_TO_CLASS = {
     "swag": misc_jobs_module.SWAGJob,
     "eurlex": misc_jobs_module.EurlexJob,
     "fpb": misc_jobs_module.FPBJob,
-    "fiqa": misc_jobs_module.FiQaJob,
+    "fiqa": misc_jobs_module.FiQAJob,
     "headline": misc_jobs_module.HeadlineJob,
 }
 

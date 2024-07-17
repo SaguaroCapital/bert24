@@ -355,13 +355,13 @@ class FPBJob(ClassificationJob):
 
         self.evaluators = [fpb_evaluator] 
 
-class FiQaWeightedMulticlassF1Score(MulticlassF1Score):
+class FiQAWeightedMulticlassF1Score(MulticlassF1Score):
     def __init__(self):
         super().__init__(num_classes=3, average='weighted')
 
-class FiQaJob(ClassificationJob):
-    """FiQa task 1 sentiment classification."""
-    custom_eval_metrics = [FiQaWeightedMulticlassF1Score]
+class FiQAJob(ClassificationJob):
+    """FiQA task 1 sentiment classification."""
+    custom_eval_metrics = [FiQAWeightedMulticlassF1Score]
     num_labels = 1
 
     def __init__(
@@ -457,7 +457,7 @@ class FiQaJob(ClassificationJob):
         fiqa_evaluator = Evaluator(
             label="fiqa_evaluator",
             dataloader=build_dataloader(fiqa_eval_dataset, **dataloader_kwargs),
-            metric_names=["FiQaWeightedMulticlassF1Score"],
+            metric_names=["FiQAWeightedMulticlassF1Score"],
         )
         self.evaluators = [fiqa_evaluator]
 
