@@ -252,13 +252,13 @@ class EurlexJob(ClassificationJob):
 
         self.evaluators = [eurlex_evaluator]
 
-class FPBMulticlassF1Score(MulticlassF1Score):
+class FPBWeightedMulticlassF1Score(MulticlassF1Score):
     def __init__(self):
-        super().__init__(num_classes=3)
+        super().__init__(num_classes=3, average='weighted')
 
 class FPBJob(ClassificationJob):
     """Financial Phrasebank classification."""
-    custom_eval_metrics = [FPBMulticlassF1Score]
+    custom_eval_metrics = [FPBWeightedMulticlassF1Score]
     num_labels = 1
 
     def __init__(
@@ -350,7 +350,7 @@ class FPBJob(ClassificationJob):
         fpb_evaluator = Evaluator(
             label="fpb_evaluator",
             dataloader=build_dataloader(fpb_eval_dataset, **dataloader_kwargs),
-            metric_names=["FPBMulticlassF1Score"],
+            metric_names=["FPBWeightedMulticlassF1Score"],
         )
 
         self.evaluators = [fpb_evaluator] 
@@ -461,9 +461,13 @@ class FiQaJob(ClassificationJob):
         )
         self.evaluators = [fiqa_evaluator]
 
+class HeadlineWeightedMulticlassF1Score(MulticlassF1Score):
+    def __init__(self):
+        super().__init__(num_classes=3, average='weighted')
+
 class HeadlineJob(ClassificationJob):
     """Gold Headlines sentiment classification."""
-    custom_eval_metrics = [FPBMulticlassF1Score]
+    custom_eval_metrics = [HeadlineWeightedMulticlassF1Score]
     num_labels = 1
 
     def __init__(
@@ -560,7 +564,7 @@ class HeadlineJob(ClassificationJob):
         headline_evaluator = Evaluator(
             label="headline_evaluator",
             dataloader=build_dataloader(headline_eval_dataset, **dataloader_kwargs),
-            metric_names=["FPBMulticlassF1Score"],
+            metric_names=["HeadlineWeightedMulticlassF1Score"],
         )
 
         self.evaluators = [headline_evaluator]
