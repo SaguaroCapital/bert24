@@ -156,3 +156,27 @@ def create_eurlex_dataset(**kwargs):
         dataset_subset="eurlex",
         task_column_names={"coastalcph/lex_glue": ("text",)},
     )
+
+def create_fpb_dataset(**kwargs):
+    return create_eval_dataset(
+        **kwargs,
+        dataset_name="takala/financial_phrasebank",
+        task_column_names={"sentences_allagree": ("sentence",), 
+                           "sentences_75agree": ("sentence",), 
+                           "sentences_66agree": ("sentence",), 
+                           "sentences_50agree": ("sentence",)},
+    )
+
+def create_fiqa_dataset(**kwargs):
+    return create_eval_dataset(
+        **kwargs,
+        dataset_name="TheFinAI/fiqa-sentiment-classification",
+        task_column_names={"default": ("sentence",)},
+    )
+
+def create_headline_dataset(**kwargs):
+    return create_eval_dataset(
+        **kwargs,
+        dataset_name="SaguaroCapital/sentiment-analysis-in-commodity-market-gold",
+        task_column_names={"default": ("News",) },
+    )
