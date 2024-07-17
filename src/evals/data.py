@@ -173,3 +173,10 @@ def create_fiqa_dataset(**kwargs):
         dataset_name="TheFinAI/fiqa-sentiment-classification",
         task_column_names={"default": ("sentence",)},
     )
+
+def create_headline_dataset(**kwargs):
+    return create_eval_dataset(
+        **kwargs,
+        dataset_name="SaguaroCapital/sentiment-analysis-in-commodity-market-gold",
+        task_column_names={"default": ("News",) },
+    )
