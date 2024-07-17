@@ -166,3 +166,10 @@ def create_fpb_dataset(**kwargs):
                            "sentences_66agree": ("sentence",), 
                            "sentences_50agree": ("sentence",)},
     )
+
+def create_fiqa_dataset(**kwargs):
+    return create_eval_dataset(
+        **kwargs,
+        dataset_name="TheFinAI/fiqa-sentiment-classification",
+        task_column_names={"default": ("sentence",)},
+    )
